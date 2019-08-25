@@ -14,7 +14,7 @@ from sklearn.preprocessing import normalize
 
 # Takes in 3 matrices and checks if the point in the middle matrix (m2) is a keypoint
 # Do this by first checking if we have a maximum
-def keypoints(m1,m2,m3):
+def get_keypoints(m1,m2,m3):
     keypoint_candidate = m2.item(4)
     if keypoint_candidate == ndimage.maximum(m2):
         if keypoint_candidate > ndimage.maximum(m1):
@@ -40,39 +40,52 @@ def DoG():
     #read the input file
     img = cv2.imread(str(fn),cv2.IMREAD_GRAYSCALE)
     image_width = len(img[0])
+    keypoint_img = img
+
     # normalize image
     img = cv2.normalize(img, None, norm_type=cv2.NORM_INF,dtype=cv2.CV_32F)
 
+    #produce s + 3 images at each octave
+    s = 2
     sigma = 0.707
-    k = 2**(1/2)
-    #run a 5x5 gaussian blur then a 3x3 gaussian blr
-    blur3 = cv2.GaussianBlur(img,(3,3),sigma,sigma)
-    sigma = 1
-    blur5 = cv2.GaussianBlur(blur3,(3,3),sigma,sigma)
-    sigma = 1.41
-    blur7 = cv2.GaussianBlur(blur5,(3,3),sigma,sigma)
-    sigma = 2
-    blur9 = cv2.GaussianBlur(blur7,(3,3),sigma,sigma)
+    k = 2**(1/s)
 
+    scale = []
+    for i in range(s+3):
+        scale.append(cv2.GaussianBlur(img,(3,3),sigma,sigma))
+        img = scale[i]
+        sigma = k * sigma
+        cv2.imwrite("lena_gray_gaussian_{}.jpg".format(i), scale[i] * 255)
 
-    #write the results of the previous step to new files
-    cv2.imwrite('lena_gray3x3.jpg', blur3 * 255)
-    cv2.imwrite('lena_gray5x5.jpg', blur5 * 255)
-    cv2.imwrite('lena_gray7x7.jpg', blur7 * 255)
-    cv2.imwrite('lena_gray9x9.jpg', blur9 * 255)
+    DoG = []
+    for i in range(s+3-1):
+        DoG.append(scale[i+1] - scale[i])
+        cv2.imwrite("lena_gray_DoG_{}.jpg".format(i), cv2.normalize(DoG[i], None, alpha=0, beta=255,norm_type=cv2.NORM_MINMAX,dtype=cv2.CV_8U))
 
-    DoGim53 = blur5 - blur3
-    DoGim75 = blur7 - blur5
-    DoGim75_norm = cv2.normalize(DoGim75, None, alpha=0, beta=255,norm_type=cv2.NORM_MINMAX,dtype=cv2.CV_8U)
-    DoGim97 = blur9 - blur7
+    keypoint_count = 0
+    key_points = []
+    for i in range(s):
+        for row in range(0, image_width-2):
+            for col in range(0, image_width-2):
+                indices = np.array(
+                    [(row * image_width) + col, (row * image_width) + col + 1, (row * image_width) + col + 2,
+                    (row * image_width) + col + 9, (row * image_width) + col + 10, (row * image_width) + col + 11,
+                    (row * image_width) + col + 18, (row * image_width) + col + 19, (row * image_width) + col + 20])
+                mat1 = np.reshape(np.take(DoG[i], indices), (3, 3))
+                mat2 = np.reshape(np.take(DoG[i+1], indices), (3, 3))
+                mat3 = np.reshape(np.take(DoG[i+2], indices), (3, 3))
+                keypoint_value = get_keypoints(mat1, mat2, mat3)
 
-    outputFile = fn_no_ext+'DoG53.jpg'
-    cv2.imwrite(outputFile, cv2.normalize(DoGim53, None, alpha=0, beta=255,norm_type=cv2.NORM_MINMAX,dtype=cv2.CV_8U))
-    outputFile = fn_no_ext+'DoG75.jpg'
-    cv2.imwrite(outputFile, cv2.normalize(DoGim75, None, alpha=0, beta=255,norm_type=cv2.NORM_MINMAX,dtype=cv2.CV_8U))
-    outputFile = fn_no_ext+'DoG97.jpg'
-    cv2.imwrite(outputFile, cv2.normalize(DoGim97, None, alpha=0, beta=255,norm_type=cv2.NORM_MINMAX,dtype=cv2.CV_8U))
+                if (keypoint_value >= 1):
+                    keypoint_count += 1
+                    key_points.append([row,col,s])
+                    cv2.circle(keypoint_img, (row, col), 3, (255, 255, 255), thickness=1)
 
+    outputFile = fn_no_ext+'_my_keypoints.jpg'
+    cv2.imwrite(outputFile, keypoint_img)
+    print("Detected " + str(keypoint_count) + " keypoints")
+    return
+"""
     keypoint_count = 0
     for row in range(0, image_width-2):
         for col in range(0, image_width-2):
@@ -92,7 +105,7 @@ def DoG():
     outputFile = fn_no_ext+'DoG75_keypoints.jpg'
     cv2.imwrite(outputFile, DoGim75_norm)
     print("Detected " + str(keypoint_count) + " keypoints")
-    return
+"""
 
 print("Welcome to the Difference of Gaussian Image creation utility.")
 image_width = 512
