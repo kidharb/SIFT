@@ -66,19 +66,27 @@ def find_keypoint_extrema(m1,m2,m3):
             return -1
     return -1
 
+def generate_octave(img, s, sigma, oct):
+    k = 2 ** (1 / s)
+    octave = []
+    for i in range(s + 2):
+        octave.append(cv2.GaussianBlur(img, (3, 3), sigma, sigma))
+        img = octave[i]
+        sigma = k * sigma
+        cv2.imwrite("lena_gray_gaussian_{}_{}.jpg".format(i,oct), octave[i] * 255)
+
+    return octave
+
 # Takes in root image, s, and sigma and outputs a pyramid of image blur
 def generate_guassian_pyramid(img, num_octaves, s, sigma):
+    gauss_pyr = []
     # normalize image
     img = cv2.normalize(img, None, norm_type=cv2.NORM_INF,dtype=cv2.CV_32F)
 
-    k = 2**(1/s)
-
-    gauss_pyr = []
-    for i in range(s+2):
-        gauss_pyr.append(cv2.GaussianBlur(img,(3,3),sigma,sigma))
-        img = gauss_pyr[i]
-        sigma = k * sigma
-        cv2.imwrite("lena_gray_gaussian_{}.jpg".format(i), gauss_pyr[i] * 255)
+    for oct in range(num_octaves):
+        octave = generate_octave(img, s, sigma, oct)
+        gauss_pyr.append(octave)
+        img = octave[-3][::2, ::2]
 
     return gauss_pyr
 
